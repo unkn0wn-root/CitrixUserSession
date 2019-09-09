@@ -9,11 +9,6 @@
     SessionID
     Network Latency
     Screen resolution
-.DESCRIPTION 
-    You need to change 2 variables to match your environment:
-    [string]$domain = 'yourdomain'  # Your domain name
-    [string]$ctxddc = 'CTXDDC01'    # Citrix Delivery Controller
-    Needs to be set BEFORE running Function
 .EXAMPLE
     PS C:\> Get-CitrixUserSession -Identity dave
     Finds Daves session and then query specific server to gather information about Daves session
