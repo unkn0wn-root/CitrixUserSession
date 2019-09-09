@@ -168,6 +168,7 @@ function Get-CitrixUserSession {
                         $SessionInfo.CitrixUser = $User.Username
                         $SessionInfo.ClientIP = $User.ConnectedViaIpAddress
                         $SessionInfo.ClientName = $User.ClientName
+                        $SessionInfo.SessionState = if (($User.SessionState) -eq '2') { 'Active/Connected' } else { 'Disconnected' }
                         $SessionInfo.UserSessionID = $Session.SessionID
                         $SessionInfo.ICARTT = $Session.RoundtripTime
                         $SessionInfo.NetworkLatency = $Session.NetworkLatency

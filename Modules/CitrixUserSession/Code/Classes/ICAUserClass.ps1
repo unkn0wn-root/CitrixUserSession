@@ -4,6 +4,7 @@ class ICAUser {
     [string]$CitrixUser
     [ipaddress]$ClientIP
     [string]$ClientName
+    [string]$SessionState
     [int]$UserSessionID
     [int]$ICARTT
     [int]$NetworkLatency
@@ -14,6 +15,7 @@ class ICAUser {
         $this.CitrixUser
         $this.ClientIP
         $this.ClientName
+        $this.SessionState
         $this.UserSessionID
         $this.ICARTT
         $this.NetworkLatency
