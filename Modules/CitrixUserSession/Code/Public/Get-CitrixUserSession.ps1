@@ -9,11 +9,6 @@
     SessionID
     Network Latency
     Screen resolution
-.DESCRIPTION 
-    You need to change 2 variables to match your environment:
-    [string]$domain = 'yourdomain'  # Your domain name
-    [string]$ctxddc = 'CTXDDC01'    # Citrix Delivery Controller
-    Needs to be set BEFORE running Function
 .EXAMPLE
     PS C:\> Get-CitrixUserSession -Identity dave
     Finds Daves session and then query specific server to gather information about Daves session
@@ -113,8 +108,10 @@ function Get-CitrixUserSession {
                 "[$(Get-Date)] :: $($_.Exception.Message)" | Out-File $LogFile -Append
                 return
             }
-        }
-        
+        } 
+    }
+
+    process {
         # Only used if Identity is specified. Then it will try to find Server address
         if ($PSBoundParameters['Identity']){
             foreach ($User in $Identity){
@@ -134,10 +131,8 @@ function Get-CitrixUserSession {
                     return
                 }
             }
-        } 
-    }
-
-    process {
+        }
+        
         foreach ($Server in $ComputerName){
             try {
                 $CitrixSessions = Get-CimInstance -ComputerName $Server -Namespace root\Citrix\euem -Class Citrix_Euem_RoundTrip -ea Stop
@@ -164,17 +159,17 @@ function Get-CitrixUserSession {
                         Get-ItemProperty "Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Citrix\Ica\Session\$($RemoteVar.SessionID)\Connection"
                         }
                         # Build ICAUser object with all gathered information
-                        $SessionInfo = [ICAUser]::new()
-                        $SessionInfo.CitrixUser = $User.Username
-                        $SessionInfo.ClientIP = $User.ConnectedViaIpAddress
-                        $SessionInfo.ClientName = $User.ClientName
-                        $SessionInfo.SessionState = if (($User.SessionState) -eq '2') { 'Active/Connected' } else { 'Disconnected' }
-                        $SessionInfo.UserSessionID = $Session.SessionID
-                        $SessionInfo.ICARTT = $Session.RoundtripTime
-                        $SessionInfo.NetworkLatency = $Session.NetworkLatency
-                        $SessionInfo.Hres = $User.HRes
-                        $SessionInfo.Vres = $User.VRes
-                        
+                        $SessionInfo = [PSCustomObject]@{
+                            CitrixUser = $User.Username
+                            ClientIP = $User.ConnectedViaIpAddress
+                            ClientName = $User.ClientName
+                            SessionState = if (($User.SessionState) -eq '2') { 'Active/Connected' } else { 'Disconnected' }
+                            UserSessionID = $Session.SessionID
+                            ICARTT = $Session.RoundtripTime
+                            NetworkLatency = $Session.NetworkLatency
+                            Hres = $User.HRes
+                            Vres = $User.VRes
+                        }
                         # Adding foreach user to the List and later output it to the screen 
                         $SessionInfoList.Add($SessionInfo)
                     }
@@ -186,17 +181,15 @@ function Get-CitrixUserSession {
                 }
             }
         }
-            if ($PSBoundParameters['Identity']) {
-                foreach ($User in $Identity){
-                    $SessionInfoList | 
-                    Where-Object {$_.CitrixUser -eq $User} | 
-                    Select-Object -Unique
-                }
+        if ($PSBoundParameters['Identity']) {
+            foreach ($User in $Identity){
+                $SessionInfoList | Where-Object {$_.CitrixUser -eq $User} | Select-Object -Unique
             }
-            else {
-                return $SessionInfoList
-            }   
         }
+        else {
+            return $SessionInfoList
+        }   
+    }
     # Cleanup after PSSession. Removes PSSnapIn and Remote Session  
     end {
         if($RemovePSSession){
