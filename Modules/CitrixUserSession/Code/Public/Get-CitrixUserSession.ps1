@@ -28,8 +28,10 @@
 #Requires -Version 5.0
 #Requires -RunAsAdministrator
 
+using module .\Classes\LoggerClass.ps1
 using namespace System.Collections.Generic
 using namespace System.IO
+
 function Get-CitrixUserSession {
     [CmdletBinding()]
     param (
@@ -62,14 +64,18 @@ function Get-CitrixUserSession {
         $SessionInfoList = [List[psobject]]::new()
         $MachineName = [List[psobject]]::new()
 
-        [string]$LogFile = "$env:SystemDrive\Temp\CitrixUserInformation_Log.txt"
-            if (-not(Test-Path -Path $LogFile)){
-                [void]([File]::Create($LogFile))
+        # Check if logg file exist - create if not
+        [DirectoryInfo]$LogPath = "$env:SystemDrive\Temp\CitrixUserInformation_Log.txt"
+            if (-not([Directory]::Exists($LogPath))){
+                $Log = [Logger]::new()
+                [void]($Log.Create($LogPath.Parent.FullName,$LogPath.BaseName))
             }
+
         if (!(Get-Variable 'ctxddc' -Scope Global -EA 'Ignore')) {
             Write-Host -ForegroundColor Black -BackgroundColor White "[INFO] Can't find any Citrix Deliver Controll information. Need more info..."
             [string]$global:ctxddc = Read-Host "Enter your Citrix Delivery Controller IP/hostname (e.g. CTXDDC001):"    # Citrix Delivery Controller Server
         }
+
         # Citrix.Broker.Admin Module needs to be loaded before you can proceed with function
         if ($null -eq (Get-Command -Name Get-BrokerSession -ea SilentlyContinue)) {
             try {
@@ -77,9 +83,10 @@ function Get-CitrixUserSession {
             }
             catch {
                 Write-Host -ForegroundColor Yellow -BackgroundColor Red "[WARNING] Couldn't import Citrix.Broker.Admin.V2 from localhost..."
-                "[$(Get-Date)] :: $($_.Exception.Message)" | Out-File $LogFile -Append
+                [Logger]::Add($LogPath,$_.Exception.Message)
             }
         }
+
         # If adding snapin from localhost fails - trying using PS Remoting
         if ( ($null -eq (Get-Command -Name Get-BrokerSession -ea SilentlyContinue) ) ) {
             Write-Host -ForegroundColor Yellow -BackgroundColor Red "[WARNING] Will now try PS remoting to import Module from $ctxddc"
@@ -105,7 +112,7 @@ function Get-CitrixUserSession {
             }
             catch {
                 Write-Error "[ERROR] You either don't have access to $ctxddc or something went wrong. Check log "
-                "[$(Get-Date)] :: $($_.Exception.Message)" | Out-File $LogFile -Append
+                [Logger]::Add($LogPath,$_.Exception.Message)
                 return
             }
         } 
@@ -127,7 +134,7 @@ function Get-CitrixUserSession {
                 }
                 catch{
                     Write-Error "[ERROR] Couldn't query user. Check log file. Aborting..."
-                    "[$(Get-Date)] :: $($_.Exception.Message)" | Out-File $LogFile -Append
+                    [Logger]::Add($LogPath,$_.Exception.Message)
                     return
                 }
             }
@@ -142,7 +149,7 @@ function Get-CitrixUserSession {
             }
             catch {
                 Write-Error "[ERROR] Couldn't connect to $Server. Check log file for more information."
-                "[$(Get-Date)] :: $($_.Exception.Message)" | Out-File $LogFile -Append
+                [Logger]::Add($LogPath,$_.Exception.Message)
                 return
             }
             foreach ($Session in $CitrixSessions) {
@@ -175,12 +182,13 @@ function Get-CitrixUserSession {
                     }
                     catch {
                         Write-Error "[ERROR] Invoke-Command failed! Check log file."
-                        "[$(Get-Date)] :: $($_.Exception.Message)" | Out-File $LogFile -Append
+                        [Logger]::Add($LogPath,$_.Exception.Message)
                         return
                     }
                 }
             }
         }
+        
         if ($PSBoundParameters['Identity']) {
             foreach ($User in $Identity){
                 $SessionInfoList | Where-Object {$_.CitrixUser -eq $User} | Select-Object -Unique

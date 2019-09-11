@@ -31,6 +31,29 @@
 using namespace System.Collections.Generic
 using namespace System.IO
 
+# Class for Error Logging
+class Logger {
+    [datetime]$CreateTime
+    [string]$Name 
+    [string]$Path
+    hidden [string]$FullPath
+    
+    Logger(){}
+
+    # Methods
+    [Logger]Create([string]$Path,[string]$Name) {
+        $LogFile = New-Item -Path $Path -Name $Name -ItemType File -Force
+        $this.CreateTime = $LogFile.LastWriteTime
+        $this.Name = $LogFile.Name
+        $this.Path = $LogFile.DirectoryName
+        $this.FullPath = $LogFile.DirectoryName + '\' + $LogFile.Name
+        return $this
+    }
+    static [void]Add([string]$Path,[string]$Message) {
+        Add-Content -Path $Path -Value "[$(Get-Date)] :: $Message"
+    }
+}
+
 function Get-CitrixUserSession {
     [CmdletBinding()]
     param (
@@ -48,7 +71,6 @@ function Get-CitrixUserSession {
         [Parameter(
         Mandatory = $true,
         ParameterSetName = 'User',
-        ValueFromPipeline,
         ValueFromPipelineByPropertyName)]
         [Alias('username')]
         [String[]]
@@ -60,17 +82,22 @@ function Get-CitrixUserSession {
         $RemovePSSession
     )
     begin {
+        # Creating Lists for objects
         $SessionInfoList = [List[psobject]]::new()
         $MachineName = [List[psobject]]::new()
 
-        [string]$LogFile = "$env:SystemDrive\Temp\CitrixUserInformation_Log.txt"
-            if (-not(Test-Path -Path $LogFile)){
-                [void]([File]::Create($LogFile))
+        # Check if logg file exist - create if not
+        [DirectoryInfo]$LogPath = "$env:SystemDrive\Temp\CitrixUserInformation_Log.txt"
+            if (-not([Directory]::Exists($LogPath))){
+                $Log = [Logger]::new()
+                [void]($Log.Create($LogPath.Parent.FullName,$LogPath.BaseName))
             }
+
         if (!(Get-Variable 'ctxddc' -Scope Global -EA 'Ignore')) {
             Write-Host -ForegroundColor Black -BackgroundColor White "[INFO] Can't find any Citrix Deliver Controll information. Need more info..."
             [string]$global:ctxddc = Read-Host "Enter your Citrix Delivery Controller IP/hostname (e.g. CTXDDC001):"    # Citrix Delivery Controller Server
         }
+
         # Citrix.Broker.Admin Module needs to be loaded before you can proceed with function
         if ($null -eq (Get-Command -Name Get-BrokerSession -ea SilentlyContinue)) {
             try {
@@ -78,9 +105,10 @@ function Get-CitrixUserSession {
             }
             catch {
                 Write-Host -ForegroundColor White -BackgroundColor Red "[WARNING] Couldn't import Citrix.Broker.Admin.V2 from localhost..."
-                "[$(Get-Date)] :: $($_.Exception.Message)" | Out-File $LogFile -Append
+                [Logger]::Add($LogPath,$_.Exception.Message)
             }
         }
+
         # If adding snapin from localhost fails - trying using PS Remoting
         if ( ($null -eq (Get-Command -Name Get-BrokerSession -ea SilentlyContinue) ) ) {
             Write-Host -ForegroundColor Yellow -BackgroundColor Red "[WARNING] Will now try PS remoting to import Module from $ctxddc"
@@ -106,7 +134,7 @@ function Get-CitrixUserSession {
             }
             catch {
                 Write-Error "[ERROR] You either don't have access to $ctxddc or something went wrong. Check log "
-                "[$(Get-Date)] :: $($_.Exception.Message)" | Out-File $LogFile -Append
+                [Logger]::Add($LogPath,$_.Exception.Message)
                 return
             }
         }
@@ -128,12 +156,11 @@ function Get-CitrixUserSession {
                 }
                 catch{
                     Write-Error "[ERROR] Couldn't query user. Check log file. Aborting..."
-                    "[$(Get-Date)] :: $($_.Exception.Message)" | Out-File $LogFile -Append
+                    [Logger]::Add($LogPath,$_.Exception.Message)
                     return
                 }
             }
         }
-        
         foreach ($Server in $ComputerName){
             try {
                 $CitrixSessions = Get-CimInstance -ComputerName $Server -Namespace root\Citrix\euem -Class Citrix_Euem_RoundTrip -ea Stop
@@ -143,9 +170,10 @@ function Get-CitrixUserSession {
             }
             catch {
                 Write-Error "[ERROR] Couldn't connect to $Server. Check log file for more information."
-                "[$(Get-Date)] :: $($_.Exception.Message)" | Out-File $LogFile -Append
+                [Logger]::Add($LogPath,$_.Exception.Message)
                 return
             }
+
             foreach ($Session in $CitrixSessions) {
                 if ($Session.SessionID -in $SessionID.PSChildName) {
                     $SessionParam = @{
@@ -176,12 +204,13 @@ function Get-CitrixUserSession {
                     }
                     catch {
                         Write-Error "[ERROR] Invoke-Command failed! Check log file."
-                        "[$(Get-Date)] :: $($_.Exception.Message)" | Out-File $LogFile -Append
+                        [Logger]::Add($LogPath,$_.Exception.Message)
                         return
                     }
                 }
             }
         }
+
         if ($PSBoundParameters['Identity']) {
             foreach ($User in $Identity){
                 $SessionInfoList | Where-Object {$_.CitrixUser -eq $User} | Select-Object -Unique
@@ -191,6 +220,7 @@ function Get-CitrixUserSession {
             return $SessionInfoList
         }   
     }
+
     # Cleanup after PSSession. Removes PSSnapIn and Remote Session  
     end {
         if($RemovePSSession){
