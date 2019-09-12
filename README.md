@@ -10,11 +10,11 @@ Get all user sessions from Citrix Apps and Desktops all query just one user.<p>
     Network Latency</p>
     Screen resolution</p>
 .EXAMPLE</p>
-    PS C:\> Get-CitrixUserSession -Identity dave</p>
-    Finds Daves session and then query specific server to gather information about Daves session
+    &emsp;PS C:\> Get-CitrixUserSession -Identity dave</p>
+    &emsp;Finds Daves session and then query specific server to gather information about Daves session</p>
 .EXAMPLE</p>
-    PS C:\> Get-CitrixUserSession -ComputerName XenApp01</p>
-    Displays all users sessions information
+    &emsp;PS C:\> Get-CitrixUserSession -ComputerName XenApp01</p>
+    &emsp;Displays all users sessions information</p>
 .EXAMPLE</p>
     PS C:\> Get-CitrixUserSession -ComputerName XenApp01 -RemovePSSession</p>
     Displays all users sessions information and removes PSSession
