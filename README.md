@@ -16,10 +16,7 @@ Get all user sessions from Citrix Apps and Desktops all query just one user.<p>
     &emsp;PS C:\> Get-CitrixUserSession -ComputerName XenApp01</p>
     &emsp;Displays all users sessions information</p>
 .EXAMPLE</p>
-    PS C:\> Get-CitrixUserSession -ComputerName XenApp01 -RemovePSSession</p>
-    Displays all users sessions information and removes PSSession
-    Note that switch removes PSSession if you do not have Citrix PSSnapIn installed on your PC/server</p>
-    It then connects to Citrix Delivery Controller and imports missing dependencies
-    Use -RemovePSSession if you want to cleanup after execution 
+    &emsp;PS C:\> Get-CitrixUserSession -ComputerName XenApp01 -RemovePSSession</p>
+    &emsp;Displays all users sessions information and removes PSSession 
     
     Ver. 1.2
