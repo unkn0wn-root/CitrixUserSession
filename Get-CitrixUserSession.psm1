@@ -61,7 +61,6 @@ function Get-CitrixUserSession {
         [Parameter(
         Mandatory=$true,
         ParameterSetName = 'ComputerName',
-        ValueFromPipeline,
         ValueFromPipelineByPropertyName)]
         [Alias('comp')]
         [string[]]
@@ -71,6 +70,7 @@ function Get-CitrixUserSession {
         [Parameter(
         Mandatory = $true,
         ParameterSetName = 'User',
+        ValueFromPipeline,
         ValueFromPipelineByPropertyName)]
         [Alias('username')]
         [String[]]
