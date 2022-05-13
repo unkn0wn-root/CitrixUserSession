@@ -32,7 +32,8 @@ using namespace System.Collections.Generic
 using namespace System.IO
 
 # Class for Error Logging
-class Logger {
+class Logger 
+{
     [datetime]$CreateTime
     [string]$Name 
     [string]$Path
@@ -41,20 +42,25 @@ class Logger {
     Logger(){}
 
     # Methods
-    [Logger]Create([string]$Path,[string]$Name) {
+    [Logger]Create([string]$Path, [string]$Name) 
+    {
         $LogFile = New-Item -Path $Path -Name $Name -ItemType File -Force
         $this.CreateTime = $LogFile.LastWriteTime
         $this.Name = $LogFile.Name
         $this.Path = $LogFile.DirectoryName
         $this.FullPath = $LogFile.DirectoryName + '\' + $LogFile.Name
+        
         return $this
     }
-    static [void]Add([string]$Path,[string]$Message) {
+    
+    static [void]Add([string]$Path,[string]$Message) 
+    {
         Add-Content -Path $Path -Value "[$(Get-Date)] :: $Message"
     }
 }
 
-function Get-CitrixUserSession {
+function Get-CitrixUserSession 
+{
     [CmdletBinding()]
     param (
         # Use if you want to display all users on specific Citrix Server
@@ -81,44 +87,55 @@ function Get-CitrixUserSession {
         [switch]
         $RemovePSSession
     )
-    begin {
+    
+    begin 
+    {
         # Creating Lists for objects
         $SessionInfoList = [List[psobject]]::new()
         $MachineName = [List[psobject]]::new()
 
         # Check if logg file exist - create if not
         [DirectoryInfo]$LogPath = "$env:SystemDrive\Temp\CitrixUserInformation_Log.txt"
-            if (-not([Directory]::Exists($LogPath))){
+            if ( !([Directory]::Exists($LogPath)) )
+            {
                 $Log = [Logger]::new()
                 [void]($Log.Create($LogPath.Parent.FullName,$LogPath.BaseName))
             }
 
-        if (!(Get-Variable 'ctxddc' -Scope Global -EA 'Ignore')) {
+        if ( !(Get-Variable 'ctxddc' -Scope Global -EA 'Ignore') ) 
+        {
             Write-Host -ForegroundColor Black -BackgroundColor White "[INFO] Can't find any Citrix Deliver Controll information. Need more info..."
             [string]$global:ctxddc = Read-Host "Enter your Citrix Delivery Controller IP/hostname (e.g. CTXDDC001):"    # Citrix Delivery Controller Server
         }
 
         # Citrix.Broker.Admin Module needs to be loaded before you can proceed with function
-        if ($null -eq (Get-Command -Name Get-BrokerSession -ea SilentlyContinue)) {
-            try {
+        if ($null -eq (Get-Command -Name Get-BrokerSession -ea SilentlyContinue)) 
+        {
+            try 
+            {
                 [void](Add-PSSnapin Citrix.Broker.Admin.V2 -ErrorAction Stop)
             }
-            catch {
+            catch 
+            {
                 Write-Host -ForegroundColor White -BackgroundColor Red "[WARNING] Couldn't import Citrix.Broker.Admin.V2 from localhost..."
                 [Logger]::Add($LogPath,$_.Exception.Message)
             }
         }
 
         # If adding snapin from localhost fails - trying using PS Remoting
-        if ( ($null -eq (Get-Command -Name Get-BrokerSession -ea SilentlyContinue) ) ) {
+        if ( ($null -eq (Get-Command -Name Get-BrokerSession -ea SilentlyContinue) ) ) 
+        {
             Write-Host -ForegroundColor Yellow -BackgroundColor Red "[WARNING] Will now try PS remoting to import Module from $ctxddc"
-            try {
+            try 
+            {
                 $TempPSSession = New-PSSession -ComputerName $ctxddc -Name Temp-CTXPSSession -ea Stop
-                if (-not($TempPSSession)){
+                if (-not($TempPSSession))
+                {
                     Write-Error "[ERROR] It seems that you do not have access to $ctxddc. Module not loaded. Aborting..."
                     return
                 }
-                else{
+                else
+                {
                     Write-Host -ForegroundColor Black -BackgroundColor White '[INFO] Trying to use PSSession to load missing dependencies[...]'
                     [void](Invoke-Command -Session $TempPSSession -ScriptBlock { Add-PSSnapin Citrix.Broker.Admin.V2 } -ea Stop)
                     # Building splatting hashtable for Import-PSSession
@@ -132,7 +149,8 @@ function Get-CitrixUserSession {
                     [void](Import-Module (Import-PSSession @Param) -Global)
                 }
             }
-            catch {
+            catch 
+            {
                 Write-Error "[ERROR] You either don't have access to $ctxddc or something went wrong. Check log "
                 [Logger]::Add($LogPath,$_.Exception.Message)
                 return
@@ -140,52 +158,68 @@ function Get-CitrixUserSession {
         }
     }
 
-    process {
+    process 
+    {
         # Only used if Identity is specified. Then it will try to find Server address
-        if ($PSBoundParameters['Identity']){
-            foreach ($User in $Identity){
-                try{
-                    if (!(Get-Variable 'domain' -Scope Global -EA 'Ignore')) {
+        if ($PSBoundParameters['Identity'])
+        {
+            foreach ($User in $Identity)
+            {
+                try
+                {
+                    if (!(Get-Variable 'domain' -Scope Global -EA 'Ignore')) 
+                    {
                         Write-Host -ForegroundColor Black -BackgroundColor White "[INFO] Prepering one-time PowerShell session information..."
                         [string]$global:domain = Read-Host "Enter your domain name (e.g. local):"  # Example: domain (not fqdn)
                     }
+                    
                     $SessionServer = (Get-BrokerSession -AdminAddress $ctxddc -ea Stop -Filter "Username -eq '$domain\$User' -and Protocol -ne 'RDP'").DNSName
                     $SessionServer = $SessionServer.Substring(0, $SessionServer.IndexOf('.'))
                     $MachineName.Add($SessionServer)
                     $ComputerName = $MachineName
                 }
-                catch{
+                catch
+                {
                     Write-Error "[ERROR] Couldn't query user. Check log file. Aborting..."
                     [Logger]::Add($LogPath,$_.Exception.Message)
                     return
                 }
             }
         }
-        foreach ($Server in $ComputerName){
-            try {
+        foreach ($Server in $ComputerName)
+        {
+            try 
+            {
                 $CitrixSessions = Get-CimInstance -ComputerName $Server -Namespace root\Citrix\euem -Class Citrix_Euem_RoundTrip -ea Stop
-                $SessionID = Invoke-Command -ComputerName $Server -ea Stop -ScriptBlock {
-                Get-ChildItem "Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Citrix\Ica\Session" -Exclude '0','CtxConnections','CtxSessions','RestartICA' 
+                $SessionID = Invoke-Command -ComputerName $Server -ea Stop -ScriptBlock 
+                {
+                    Get-ChildItem "Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Citrix\Ica\Session" -Exclude '0','CtxConnections','CtxSessions','RestartICA' 
                 }
             }
-            catch {
+            catch 
+            {
                 Write-Error "[ERROR] Couldn't connect to $Server. Check log file for more information."
                 [Logger]::Add($LogPath,$_.Exception.Message)
                 return
             }
 
-            foreach ($Session in $CitrixSessions) {
-                if ($Session.SessionID -in $SessionID.PSChildName) {
+            foreach ($Session in $CitrixSessions) 
+            {
+                if ($Session.SessionID -in $SessionID.PSChildName) 
+                {
                     $SessionParam = @{
                     ComputerName = $Server
                     ArgumentList = $Session
                     ErrorAction = 'Stop'
                     }
-                    try {
+                    
+                    try 
+                    {
                         # Getting ICA user session properties 
-                        $User = Invoke-Command @SessionParam {
-                        param ($RemoteVar) 
-                        Get-ItemProperty "Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Citrix\Ica\Session\$($RemoteVar.SessionID)\Connection"
+                        $User = Invoke-Command @SessionParam 
+                        {
+                            param ($RemoteVar) 
+                            Get-ItemProperty "Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Citrix\Ica\Session\$($RemoteVar.SessionID)\Connection"
                         }
                         # Build ICAUser object with all gathered information
                         $SessionInfo = [PSCustomObject]@{
@@ -203,7 +237,8 @@ function Get-CitrixUserSession {
                         # Adding foreach user to the List and later output it to the screen 
                         $SessionInfoList.Add($SessionInfo)
                     }
-                    catch {
+                    catch 
+                    {
                         Write-Error "[ERROR] Invoke-Command failed! Check log file."
                         [Logger]::Add($LogPath,$_.Exception.Message)
                         return
@@ -212,19 +247,24 @@ function Get-CitrixUserSession {
             }
         }
 
-        if ($PSBoundParameters['Identity']) {
-            foreach ($User in $Identity){
+        if ($PSBoundParameters['Identity']) 
+        {
+            foreach ($User in $Identity)
+            {
                 $SessionInfoList | Where-Object {$_.CitrixUser -eq $User} | Select-Object -Unique
             }
         }
-        else {
+        else 
+        {
             return $SessionInfoList
         }   
     }
 
     # Cleanup after PSSession. Removes PSSnapIn and Remote Session  
-    end {
-        if($RemovePSSession){
+    end 
+    {
+        if($RemovePSSession)
+        {
             Remove-PSSession -Session $TempPSSession -Confirm:$false
             Write-Host -ForegroundColor Black -BackgroundColor White '[INFO] Powershell session removed and all of imported modules/SnapIns'
         }
